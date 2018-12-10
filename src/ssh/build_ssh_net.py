@@ -20,9 +20,7 @@ from utils import show_box_in_tensor
 
 
 class DetectionNetwork(object):
-
     def __init__(self, base_network_name, is_training):
-
         self.base_network_name = base_network_name
         self.is_training = is_training
         self.use_bn= cfgs.BN_USE
@@ -31,12 +29,12 @@ class DetectionNetwork(object):
         self.m2_num_anchors_per_location = len(cfgs.M2_ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
         self.m3_num_anchors_per_location = len(cfgs.M3_ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
 
-    def build_base_network(self, input_img_batch):
+    def build_base_network(self, input_img_batch,**kargs):
         if self.base_network_name.startswith('resnet'):
-            return models.get_symble(input_img_batch, net_name=self.base_network_name,w_decay=cfgs.WEIGHT_DECAY,\
-                                     train_fg=self.is_training)
+            return models.get_symble(input_img_batch, net_name=self.base_network_name,\
+                                     train_fg=self.is_training,**kargs)
         elif self.base_network_name.startswith('MobilenetV2'):
-            return mobilenet_v2.get_symble(input_img_batch, train_fg=self.is_training)
+            return mobilenet_v2.get_symble(input_img_batch, train_fg=self.is_training,**kargs)
         else:
             raise ValueError('Sry, we only support resnet or mobilenet_v2')
 
@@ -178,14 +176,14 @@ class DetectionNetwork(object):
         cls_prob_m = tf.reshape(tf.gather(cls_prob, keep_inds,name='cls_prob_sel'), [-1, (cfgs.CLASS_NUM + 1)],name='cls_prob_reshape')
         return box_pred_m,cls_score_m,cls_prob_m
 
-    def build_whole_detection_network(self, input_img_batch, gtboxes_batch):
+    def build_ssh_network(self, input_img_batch, gtboxes_batch,**kargs):
         if self.is_training:
             # ensure shape is [M, 5]
             gtboxes_batch = tf.reshape(gtboxes_batch, [-1, 5])
             gtboxes_batch = tf.cast(gtboxes_batch, tf.float32)
         img_shape = tf.shape(input_img_batch)
         # 1. build base network
-        feature_stride8, feature_stride16 = self.build_base_network(input_img_batch)
+        feature_stride8, feature_stride16 = self.build_base_network(input_img_batch,**kargs)
         # 2. build rpn
         with tf.variable_scope('build_ssh'):
             feature_m1,feature_m3 = self.get_feature_m1m3(feature_stride8,feature_stride16)

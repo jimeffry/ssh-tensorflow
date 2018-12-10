@@ -16,12 +16,6 @@ SHOW_TRAIN_INFO_INTE = 10
 SMRY_ITER = 100
 SAVE_WEIGHTS_INTE = 10000
 
-TEST_SAVE_PATH = ROOT_PATH + '/tools/test_result'
-
-PRETRAINED_CKPT = ROOT_PATH + '/data/pretrained_weights/' + weights_name + '.ckpt'
-TRAINED_CKPT = os.path.join(ROOT_PATH, 'output/trained_weights')
-EVALUATE_DIR = ROOT_PATH + '/output/evaluate_result_pickle/' + VERSION
-
 # ------------------------------------------ Train config
 BN_USE = True 
 RESTORE_FROM_RPN = False

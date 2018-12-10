@@ -15,35 +15,53 @@ from configs import config as cfgs
 from ssh import build_ssh_net
 from prepare_data.read_tfrecord import next_batch
 from utils.box_utils import show_box_in_tensor
+from utils.get_property import load_property
 
 def parms():
     parser = argparse.ArgumentParser(description='SSH training')
-    parser.add_argument('--load_num',type=int,default=0,help='ckpt num')
+    parser.add_argument('--load-num',dest='load_num',type=int,default=0,help='ckpt num')
+    parser.add_argument('--save-weight-period',dest='save_weight_period',type=int,default=5,\
+                        help='the period to save')
+    parser.add_argument('--epochs',type=int,default=20,help='train epoch nums')
+    parser.add_argument('--batch-size',dest='batch_size',type=int,default=1,\
+                        help='train batch size')
     parser.add_argument('--model-path',dest='model_path',type=str,default='../../models/ssh',\
                         help='path saved models')
     parser.add_argument('--log-path',dest='log_path',type=str,default='../../logs',\
                         help='path saved logs')
     parser.add_argument('--gpu-list',dest='gpu_list',type=str,default='0',\
                         help='train on gpu num')
+    parser.add_argument('--property-file',dest='property_file',type=str,\
+                        default='../../data/property.txt',help='nums of train dataset images')
+    parser.add_argument('--data-record',dest='data_record',type=str,\
+                        default='../../data/',help='tensorflow data record')
     return parser.parse_args()
 
-def train(model_path,load_num,log_dir):
+def train(**kargs):
+    model_path = kargs.get('model_path','../../models/ssh')
+    load_num = kargs.get('load_num',0)
+    log_dir = kargs.get('log_path','../../logs')
+    epochs = kargs.get('epochs',20)
+    batch_size = kargs.get('batch_size',1)
+    save_weight_period = kargs.get('save_weight_period',1)
+    property_file = kargs.get('property_file','../../data/property.txt')
+    data_record = kargs.get('data_record','../../data/tfrecord')
+    Property = load_property(property_file)
+    train_img_nums = Property['img_nums']
     faster_rcnn = build_ssh_net.DetectionNetwork(base_network_name=cfgs.NET_NAME,
                                                        is_training=True)
     with tf.name_scope('get_batch'):
         img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch = \
             next_batch(dataset_name=cfgs.DATASET_NAME,  # 'pascal', 'coco'
-                       batch_size=cfgs.BATCH_SIZE,
+                       data_prefix=data_record,
+                       batch_size=batch_size,
                        shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
                        is_training=True)
         gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
-    biases_regularizer = tf.no_regularizer
-    weights_regularizer = tfc.layers.l2_regularizer(cfgs.WEIGHT_DECAY)
-
     # list as many types of layers as possible, even if they are not used now
     with tf.name_scope('build_ssh_trainnet'):
-        result_dict, losses_dict = faster_rcnn.build_whole_detection_network(input_img_batch=img_batch,
-                                                                             gtboxes_batch=gtboxes_and_label)
+        result_dict, losses_dict = faster_rcnn.build_ssh_network(input_img_batch=img_batch,
+                                            gtboxes_batch=gtboxes_and_label,w_decay=cfgs.WEIGHT_DECAY)
     # ----------------------------------------------------------------------------------------------------build loss
     weight_decay_loss = tf.add_n(tf.losses.get_regularization_losses())
     # weight_decay_loss = tf.add_n(tf.losses.get_regularization_losses())
@@ -81,7 +99,6 @@ def train(model_path,load_num,log_dir):
                                                                    boxes=gtboxes_and_label[:, :-1],
                                                                    labels=gtboxes_and_label[:, -1])
     if cfgs.ADD_BOX_IN_TENSORBOARD:
-
         detections_in_img_m1 = \
             show_box_in_tensor.draw_boxes_with_categories_and_scores(img_batch=img_batch,
                                                                      boxes=result_dict['final_bbox_m1'],
@@ -150,29 +167,26 @@ def train(model_path,load_num,log_dir):
             os.makedirs(summary_path)
         summary_writer = tf.summary.FileWriter(summary_path, graph=sess.graph)
         try:
-            for step in range(cfgs.MAX_ITERATION):
-                training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-                if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
+            for epoch_tmp in range(epochs):
+                for step in range(np.round(train_img_nums/batch_size)):
+                    training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                    if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
                     _, global_stepnp = sess.run([train_op, global_step])
-                else:
-                    if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
-                        start = time.time()
-
-                        _, global_stepnp, img_name, totalLoss = \
-                            sess.run(
-                                [train_op, global_step, img_name_batch, total_loss])
-
-                        end = time.time()
-                        print(""" {}: step{}    image_name:{} |\t total_loss:{} |\t per_cost_time:{}s""" \
-                            .format(training_time, global_stepnp, str(img_name[0]), totalLoss,
-                                    (end - start)))
                     else:
-                        if step % cfgs.SMRY_ITER == 0:
-                            _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op])
-                            summary_writer.add_summary(summary_str, global_stepnp)
-                            summary_writer.flush()
-
-                if (step > 0 and step % cfgs.SAVE_WEIGHTS_INTE == 0) or (step == cfgs.MAX_ITERATION - 1):
+                        if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
+                            start = time.time()
+                            _, global_stepnp, img_name, totalLoss = sess.run(
+                                    [train_op, global_step, img_name_batch, total_loss])
+                            end = time.time()
+                            print(""" {}: step{}    image_name:{} |\t total_loss:{} |\t per_cost_time:{}s""" \
+                                .format(training_time, global_stepnp, str(img_name[0]), totalLoss,
+                                    (end - start)))
+                        else:
+                            if step % cfgs.SMRY_ITER == 0:
+                                _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op])
+                                summary_writer.add_summary(summary_str, global_stepnp)
+                                summary_writer.flush()
+                if (epoch_tmp > 0 and epoch_tmp % save_weight_period == 0) or (epoch_tmp == epochs - 1):
                     save_dir = model_path
                     saver.save(sess, save_dir,global_step)
                     print(' weights had been saved')
@@ -185,7 +199,6 @@ def train(model_path,load_num,log_dir):
         #record_file_out.close()
         sess.close()
 
-
 if __name__ == '__main__':
     args = parms()
     gpu_group = args.gpu_list
@@ -193,7 +206,8 @@ if __name__ == '__main__':
     model_path = args.model_path
     load_num = args.load_num
     log_path = args.log_path
-    train(model_path,load_num,log_path)
+    epoch_num = args.epochs
+    train(**args)
 
 #
 
