@@ -7,95 +7,105 @@ from __future__ import division
 import numpy as np
 import tensorflow as tf
 import os
-from data.io import image_preprocess
+from image_preprocess import short_side_resize
+from convert_data_to_tfrecord import label_show
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from configs import config as cfgs
+sys.path.append(os.path.join(os.path.dirname(__file__), '../configs'))
+import config as cfgs
 
-def read_single_example_and_decode(filename_queue):
+class Read_Tfrecord(object):
+    def __init__(self,dataset_name,data_dir,batch_size, is_training):
+        assert batch_size == 1, "we only support batch_size is 1.We may support large batch_size in the future"
+        if dataset_name not in ['ship', 'spacenet', 'pascal', 'coco', 'WiderFace']:
+            raise ValueError('dataSet name must be in pascal, coco spacenet and ship')
+        if is_training:
+            tfrecord_file = os.path.join(data_dir, dataset_name,'train.tfrecord')
+        else:
+            tfrecord_file = os.path.join(data_dir, dataset_name ,'test.tfrecord')
+        print('tfrecord path is -->', os.path.abspath(tfrecord_file))
+        self.batch_size = batch_size
+        #filename_tensorlist = tf.train.match_filenames_once(pattern)
+        #self.filename_queue = tf.train.string_input_producer(filename_tensorlist)
+        self.filename_queue = tf.train.string_input_producer([tfrecord_file],shuffle=True)
+        self.reader = tf.TFRecordReader()
 
-    # tfrecord_options = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.ZLIB)
+    def read_single_example_and_decode(self):
+        _, serialized_example = self.reader.read(self.filename_queue)
+        features = tf.parse_single_example(
+            serialized=serialized_example,
+            features={
+                'img_name': tf.FixedLenFeature([], tf.string),
+                'img_height': tf.FixedLenFeature([], tf.int64),
+                'img_width': tf.FixedLenFeature([], tf.int64),
+                'img': tf.FixedLenFeature([], tf.string),
+                'gtboxes_and_label': tf.FixedLenFeature([], tf.string),
+                'num_objects': tf.FixedLenFeature([], tf.int64)
+            }
+        )
+        img_name = features['img_name']
+        img_height = tf.cast(features['img_height'], tf.int32)
+        img_width = tf.cast(features['img_width'], tf.int32)
+        #print("begin to decode")
+        img = tf.image.decode_jpeg(features['img'],channels=3)
+        img = tf.reshape(img, shape=[img_height, img_width, 3])
+        gtboxes_and_label = tf.decode_raw(features['gtboxes_and_label'], tf.int32)
+        gtboxes_and_label = tf.reshape(gtboxes_and_label, [-1, 5])
+        num_objects = tf.cast(features['num_objects'], tf.int32)
+        return img_name, img, gtboxes_and_label, num_objects
 
-    # reader = tf.TFRecordReader(options=tfrecord_options)
-    reader = tf.TFRecordReader()
-    _, serialized_example = reader.read(filename_queue)
+    def norm_data(self,img):
+        img[:,:,0] = img[:,:,0]- cfgs.PIXEL_MEAN[0] # R
+        img[:,:,1] = img[:,:,1]- cfgs.PIXEL_MEAN[1] # G
+        img[:,:,2] = img[:,:,2]- cfgs.PIXEL_MEAN[2] # B
+        img = img/cfgs.PIXEL_NORM
+        return img.astype(np.float32)
 
-    features = tf.parse_single_example(
-        serialized=serialized_example,
-        features={
-            'img_name': tf.FixedLenFeature([], tf.string),
-            'img_height': tf.FixedLenFeature([], tf.int64),
-            'img_width': tf.FixedLenFeature([], tf.int64),
-            'img': tf.FixedLenFeature([], tf.string),
-            'gtboxes_and_label': tf.FixedLenFeature([], tf.string),
-            'num_objects': tf.FixedLenFeature([], tf.int64)
-        }
-    )
-    img_name = features['img_name']
-    img_height = tf.cast(features['img_height'], tf.int32)
-    img_width = tf.cast(features['img_width'], tf.int32)
-    img = tf.decode_raw(features['img'], tf.uint8)
+    def process_img(self,img,gt):
+        if cfgs.IMG_LIMITATE:
+            img, gt = short_side_resize(img_tensor=img, gtboxes_and_label=gt,
+                                        target_shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
+                                        ength_limitation=cfgs.IMG_MAX_LENGTH)
+        img = tf.py_func(self.norm_data,[img],tf.float32)
+        img.set_shape([None,None,3])
+        return img,gt
 
-    img = tf.reshape(img, shape=[img_height, img_width, 3])
-
-    gtboxes_and_label = tf.decode_raw(features['gtboxes_and_label'], tf.int32)
-    gtboxes_and_label = tf.reshape(gtboxes_and_label, [-1, 5])
-
-    num_objects = tf.cast(features['num_objects'], tf.int32)
-    return img_name, img, gtboxes_and_label, num_objects
-
-
-def read_and_prepocess_single_img(filename_queue, shortside_len, is_training):
-
-    img_name, img, gtboxes_and_label, num_objects = read_single_example_and_decode(filename_queue)
-
-    img = tf.cast(img, tf.float32)
-
-    if is_training:
-        img, gtboxes_and_label = image_preprocess.short_side_resize(img_tensor=img, gtboxes_and_label=gtboxes_and_label,
-                                                                    target_shortside_len=shortside_len,
-                                                                    length_limitation=cfgs.IMG_MAX_LENGTH)
-        img, gtboxes_and_label = image_preprocess.random_flip_left_right(img_tensor=img,
-                                                                         gtboxes_and_label=gtboxes_and_label)
-
-    else:
-        img, gtboxes_and_label = image_preprocess.short_side_resize(img_tensor=img, gtboxes_and_label=gtboxes_and_label,
-                                                                    target_shortside_len=shortside_len,
-                                                                    length_limitation=cfgs.IMG_MAX_LENGTH)
-    img = img - tf.constant([[cfgs.PIXEL_MEAN]])  # sub pixel mean at last
-    return img_name, img, gtboxes_and_label, num_objects
-
-
-def next_batch(dataset_name, batch_size, shortside_len, is_training):
-    '''
-    :return:
-    img_name_batch: shape(1, 1)
-    img_batch: shape:(1, new_imgH, new_imgW, C)
-    gtboxes_and_label_batch: shape(1, Num_Of_objects, 5] .each row is [x1, y1, x2, y2, label]
-    '''
-    assert batch_size == 1, "we only support batch_size is 1.We may support large batch_size in the future"
-
-    if dataset_name not in ['ship', 'spacenet', 'pascal', 'coco', 'WIDER']:
-        raise ValueError('dataSet name must be in pascal, coco spacenet and ship')
-
-    if is_training:
-        pattern = os.path.join('../data/tfrecord', dataset_name + '_train*')
-    else:
-        pattern = os.path.join('../data/tfrecord', dataset_name + '_test*')
-
-    print('tfrecord path is -->', os.path.abspath(pattern))
-
-    filename_tensorlist = tf.train.match_filenames_once(pattern)
-
-    filename_queue = tf.train.string_input_producer(filename_tensorlist)
-
-    img_name, img, gtboxes_and_label, num_obs = read_and_prepocess_single_img(filename_queue, shortside_len,
-                                                                              is_training=is_training)
-    img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch = \
-        tf.train.batch(
-                       [img_name, img, gtboxes_and_label, num_obs],
-                       batch_size=batch_size,
+    def next_batch(self):
+        img_name, img_raw, gtboxes_and_label, num_obs = self.read_single_example_and_decode()
+        img_data, gtboxes_and_label = self.process_img(img_raw,gtboxes_and_label)
+        #print("begin to batch")
+        img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch = \
+            tf.train.batch(
+                       [img_name, img_data, gtboxes_and_label, num_obs],
+                       batch_size=self.batch_size,
                        capacity=1,
                        num_threads=1,
                        dynamic_pad=True)
-    return img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch
+        return img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch
+
+
+if __name__ == '__main__':
+    img_dict = dict()
+    sess = tf.Session()
+    tfrd = Read_Tfrecord('WiderFace','../../data',1,True)
+    img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch = tfrd.next_batch()
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+    try:
+        for i in range(10):
+            print("idx",i)
+            img,gt,name,obg = sess.run([img_batch,gtboxes_and_label_batch,img_name_batch, \
+                                num_obs_batch])
+            print("img",np.shape(img))
+            print('gt',np.shape(gt))
+            print('name:',name)
+            #print('num_obg:',obg)
+            print('data',img[0,5,:5,0])
+            img_dict['img_data'] = img[0]
+            img_dict['gt'] = gt[0]
+            #label_show(img_dict)
+    except tf.errors.OutOfRangeError:
+        print("Over！！！")
+    finally:
+        coord.request_stop()
+    coord.join(threads)
+    sess.close()

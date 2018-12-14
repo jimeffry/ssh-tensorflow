@@ -6,6 +6,8 @@ import tensorflow as tf
 # ------------------------------------------------
 NET_NAME = 'resnet50'#'resnet100'  # 'MobilenetV2'
 ADD_BOX_IN_TENSORBOARD = True
+#------------------------------------------ convert data to tfrecofr config
+BIN_DATA = 0 # whether read image data from binary
 
 # ---------------------------------------- System_config
 ROOT_PATH = os.path.abspath('../')
@@ -40,9 +42,11 @@ LR = 0.001
 DECAY_STEP = [50000, 70000]
 MAX_ITERATION = 200000
 
-# -------------------------------------------- Data_preprocess_config
-DATASET_NAME = 'WIDER'  # 'ship', 'spacenet', 'pascal', 'coco'
+# -------------------------------------------- Data_preprocess_config 
+DATASET_NAME = 'WiderFace'  # 'ship', 'spacenet', 'pascal', 'coco'
 PIXEL_MEAN = [123.68, 116.779, 103.939]  # R, G, B. In tf, channel is RGB. In openCV, channel is BGR
+PIXEL_NORM = 128.0
+IMG_LIMITATE = 0
 IMG_SHORT_SIDE_LEN = 1000
 IMG_MAX_LENGTH = 3000
 CLASS_NUM = 1

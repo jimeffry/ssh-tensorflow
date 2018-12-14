@@ -5,13 +5,16 @@ import numpy as np
 import tensorflow as tf
 import glob
 import cv2
-from image_preprocess import transform
 import argparse
 import os 
 import sys
 import math
+import random
 sys.path.append(os.path.join(os.path.dirname(__file__),'../configs'))
 from label_dict import NAME_LABEL_MAP
+import config as cfgs
+sys.path.append(os.path.join(os.path.dirname(__file__),'../utils'))
+import transform
 
 def parms():
     parser = argparse.ArgumentParser(description='dataset convert')
@@ -41,23 +44,43 @@ class DataToRecord(object):
         self.writer = tf.python_io.TFRecordWriter(path=save_path)
 
     def _int64_feature(self,value):
-        return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+        if not isinstance(value, list):
+            value = [value]
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
     def _bytes_feature(self,value):
-        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+        if not isinstance(value, list):
+            value = [value]
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
+
+    def _float_feature(value):
+        """Wrapper for insert float features into Example proto."""
+        if not isinstance(value, list):
+            value = [value]
+        return tf.train.Feature(float_list=tf.train.FloatList(value=value))
     
     def write_recore(self,img_dict):
         # maybe do not need encode() in linux
         img_name = img_dict['img_name']
         img_height,img_width = img_dict['img_shape']
         img = img_dict['img_data']
+        '''
+        img[:,:,0] = img[:,:,0] - cfgs.PIXEL_MEAN[0] # R
+        img[:,:,1] = img[:,:,1] - cfgs.PIXEL_MEAN[1] # G
+        img[:,:,2] = img[:,:,2] - cfgs.PIXEL_MEAN[2] # B
+        img = img / cfgs.PIXEL_NORM
+        '''
+        if not cfgs.BIN_DATA:
+            img_raw = cv2.imencode('.jpg', img)[1]
+            img = img_raw
         gtbox_label = img_dict['gt']
+        #num_objects = img_dict['num_objects']
         feature = tf.train.Features(feature={
             'img_name': self._bytes_feature(img_name),
             'img_height': self._int64_feature(img_height),
             'img_width': self._int64_feature(img_width),
             'img': self._bytes_feature(img.tostring()),
-            'gtboxes_and_label': self._bytes_feature(gtbox_label.tostring()),
+            'gtboxes_and_label': self._bytes_feature(gtbox_label.tostring()), #self._int64_feature(gtbox_label),
             'num_objects': self._int64_feature(gtbox_label.shape[0])
         })
         example = tf.train.Example(features=feature)
@@ -115,9 +138,41 @@ def read_xml_gtbox_and_label(xml_path):
         gtbox_label = None
     return img_height, img_width, gtbox_label
 
+def transform_voc(img_dict):
+    auger_list=["Sequential", "Fliplr", "CropAndPad","Affine","Dropout", \
+                "AdditiveGaussianNoise","SigmoidContrast","Multiply"]
+    Imag_Aug = transform.Transform(img_auger_list=auger_list)
+    img_name = img_dict['img_name']
+    img_height,img_width = img_dict['img_shape']
+    img = img_dict['img_data']
+    gtbox_label = img_dict['gt']
+    bboxes = gtbox_label[:,:-1]
+    labels = gtbox_label[:,-1]
+    labels = [labels.tolist()]
+    img_aug,bbox_aug,keep_idx = Imag_Aug.aug_img_boxes(img,[bboxes.tolist()])
+    if not len(bbox_aug) > 0:
+        return None
+    img_idx = keep_idx[0]
+    box_idx = keep_idx[1]
+    labels = np.array(labels)
+    labels = labels[img_idx,box_idx]
+    labels = np.reshape(labels,[-1,1])
+    img_out = img_aug[0]
+    bbox_out = bbox_aug[0]
+    bbox_out = np.array(bbox_out)
+    bbox_out = np.reshape(bbox_out,[-1,4])
+    gt_box_labels = np.concatenate((bbox_out,labels),axis=1)
+    img_dict_out = dict()
+    img_dict_out['img_data'] = img_out
+    img_dict_out['img_shape'] = img_out.shape[:2]
+    img_dict_out['img_name'] = img_name
+    img_dict_out['gt'] = gt_box_labels
+    return img_dict_out
+
+
 def convert_pascal_to_tfrecord(args):
     '''
-    xml_dir = kargs.get('xml_dir',None)
+    xml_dir = kargs.get('xml_dir',None)labels
     voc_dir = kargs.get('VOC_dir',None)
     save_dir = kargs.get('save_dir',None)
     dataset_name = kargs.get('dataset_name',None)
@@ -128,7 +183,7 @@ def convert_pascal_to_tfrecord(args):
     xml_dir = args.xml_dir
     voc_dir = args.VOC_dir
     save_dir = args.save_dir
-    dataset_name = args.dataset_name
+    dataset_name = cfgs.DATASET_NAME #args.dataset_name
     image_dir = args.image_dir
     save_name = args.save_name
     img_format = args.img_format
@@ -177,79 +232,151 @@ def convert_pascal_to_tfrecord(args):
     property_file.close()
     record_w.close()
 
-#convert widerface data to tfrecord
-def rd_anotation(annotation,im_dir,img_format):
-    '''
-    annotation: 1/img_01 x1 y1 x2 y2 x1 y1 x2 y2 ...
-    '''
-    img_dict = dict()
-    annotation = annotation.strip().split()
-    im_path = annotation[0]
-    #boxed change to float type
-    bbox = map(float, annotation[1:])
-    #gt
-    boxes = np.array(bbox, dtype=np.int32).reshape(-1, 4)
-    label = np.ones([boxes.shape[0],1],dtype=np.int32)*NAME_LABEL_MAP['face']
-    #print(boxes.shape,label.shape)
-    gt_box_labels = np.concatenate((boxes,label),axis=1)
-    #load image
-    img_path = os.path.join(im_dir, im_path + img_format)
-    if not os.path.exists(img_path):
-        return None
-    img = cv2.imread(img_path)
-    if img is None:
-        return None
-    img_name = img_path.split('/')[-1]
-    img_name = img_name + img_format
-    img_dict['img_data'] = img
-    img_dict['img_shape'] = img.shape[:2]
-    img_dict['gt'] = gt_box_labels
-    img_dict['img_name'] = img_name
-    return img_dict
 
+class WiderFace2TFrecord(object):
+    def __init__(self,args):
+        self.anno_file = args.anno_file
+        save_dir = args.save_dir
+        dataset_name = cfgs.DATASET_NAME #args.dataset_name
+        self.image_dir = args.image_dir
+        save_name = args.save_name
+        self.img_format = args.img_format
+        save_path = os.path.join(save_dir,dataset_name)
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        save_name = save_name + '.tfrecord'
+        record_save_path = os.path.join(save_path,save_name)
+        self.record_w = DataToRecord(record_save_path)
+        self.property_file = os.path.join(save_path,'property.txt')
+    #convert widerface data to tfrecord
+    def rd_anotation(self,annotation):
+        '''
+        annotation: 1/img_01 x1 y1 x2 y2 x1 y1 x2 y2 ...
+        '''
+        img_dict = dict()
+        annotation = annotation.strip().split()
+        self.img_prefix = annotation[0]
+        #boxed change to float type
+        bbox = map(float, annotation[1:])
+        #gt
+        self.boxes = np.array(bbox, dtype=np.int32).reshape(-1, 4)
+        label = np.ones([self.boxes.shape[0],1],dtype=np.int32)*NAME_LABEL_MAP['face']
+        gt_box_labels = np.concatenate((self.boxes,label),axis=1)
+        #load image
+        img_path = os.path.join(self.image_dir, self.img_prefix + self.img_format)
+        if not os.path.exists(img_path):
+            return None
+        self.img_org = cv2.imread(img_path)
+        if self.img_org is None:
+            return None
+        img_shape = self.img_org.shape[:2]
+        #img = img[:,:,::-1]
+        if cfgs.BIN_DATA:
+            img_raw = open(img_path,'rb').read()
+        num_objects_one_img = gt_box_labels.shape[0]
+        #gt_box_labels = np.reshape(gt_box_labels,-1)
+        #gt_list = gt_box_labels.tolist()
+        self.img_name = img_path.split('/')[-1]
+        img_dict['img_data'] = img_raw if cfgs.BIN_DATA else self.img_org
+        img_dict['img_shape'] = img_shape
+        img_dict['gt'] = gt_box_labels #gt_list
+        img_dict['img_name'] = self.img_name
+        img_dict['num_objects'] = num_objects_one_img
+        return img_dict
 
-def convert_widerface_to_tfrecord(args):
-    '''
-    anno_file = kargs.get('anno_file',None)
-    save_dir = kargs.get('save_dir',None)
-    dataset_name = kargs.get('dataset_name',None)
-    image_dir = kargs.get('image_dir',None)
-    save_name = kargs.get('save_name',None)
-    img_format = kargs.get('img_format',None)
-    #property_file = kargs.get('property_file',None)
-    '''
-    anno_file = args.anno_file
-    save_dir = args.save_dir
-    dataset_name = args.dataset_name
-    image_dir = args.image_dir
-    save_name = args.save_name
-    img_format = args.img_format
-    save_path = os.path.join(save_dir,dataset_name)
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    save_name = save_name + '.tfrecord'
-    record_save_path = os.path.join(save_path,save_name)
-    record_w = DataToRecord(record_save_path)
-    property_file = os.path.join(save_path,'property.txt')
-    property_w = open(property_file,'w')
-    anno_p = open(anno_file,'r')
-    anno_lines = anno_p.readlines()
-    total_img = 0
-    dataset_img_num = len(anno_lines)
-    for count,tmp in enumerate(anno_lines):
-        img_dict = rd_anotation(tmp,image_dir,img_format)
-        if img_dict is None:
-            print("the img path is none:",tmp.strip().split()[0])
-            continue
-        record_w.write_recore(img_dict)
-        total_img+=1
-        view_bar('Conversion progress', count + 1,dataset_img_num)
-    print('\nConversion is complete!')
-    property_w.write("{},{}".format(len(NAME_LABEL_MAP.keys()),total_img))
-    property_file.close()
-    record_w.close()
-    anno_p.close()
+    def transform_widerface(self):
+        '''
+        annotation: 1/img_01 x1 y1 x2 y2 x1 y1 x2 y2 ...
+        '''
+        auger_list=["Sequential", "Fliplr","Affine","Dropout", \
+                    "AdditiveGaussianNoise","SigmoidContrast","Multiply"]
+        trans = transform.Transform(landmark_num=5,img_auger_list=auger_list,class_num=2)
+        img_dict = dict()
+        if self.img_org is None:
+            print("aug img is None")
+            return None
+        img_aug,boxes_aug,keep_idx = trans.aug_img_boxes(self.img_org,[self.boxes.tolist()])
+        if not len(boxes_aug) >0:
+            #print("aug box is None")
+            return None
+        img_data = img_aug[0]
+        boxes_trans = np.array(boxes_aug[0], dtype=np.int32).reshape(-1, 4)
+        label = np.ones([boxes_trans.shape[0],1],dtype=np.int32)*NAME_LABEL_MAP['face']
+        gt_box_labels = np.concatenate((boxes_trans,label),axis=1)
+        num_objects_one_img = gt_box_labels.shape[0]
+        #gt_box_labels = np.reshape(gt_box_labels,-1)
+        #gt_list = gt_box_labels.tolist()
+        img_dict['img_data'] = img_data
+        img_dict['img_shape'] = img_data.shape[:2]
+        img_dict['gt'] = gt_box_labels #gt_list
+        img_dict['img_name'] = self.img_prefix+'_aug'+self.img_format
+        img_dict['num_objects'] = num_objects_one_img
+        return img_dict
 
+    def convert_widerface_to_tfrecord(self):
+        '''
+        anno_file = kargs.get('anno_file',None)
+        save_dir = kargs.get('save_dir',None)
+        dataset_name = kargs.get('dataset_name',None)
+        image_dir = kargs.get('image_dir',None)
+        save_name = kargs.get('save_name',None)
+        img_format = kargs.get('img_format',None)
+        #property_file = kargs.get('property_file',None)
+        '''
+        failed_aug_path = open('aug_failed.txt','w')
+        property_w = open(self.property_file,'w')
+        anno_p = open(self.anno_file,'r')
+        anno_lines = anno_p.readlines()
+        total_img = 0
+        dataset_img_num = len(anno_lines)
+        cnt_failed = 0
+        for count,tmp in enumerate(anno_lines):
+            img_dict = self.rd_anotation(tmp)
+            if img_dict is None:
+                print("the img path is none:",tmp.strip().split()[0])
+                continue
+            self.record_w.write_recore(img_dict)
+            #label_show(img_dict,'bgr')
+            total_img+=1
+            if random.randint(0, 1) and not cfgs.BIN_DATA:
+                img_dict = self.transform_widerface()
+                if img_dict is None:
+                    #print("the aug img path is none:",tmp.strip().split()[0])
+                    failed_aug_path.write(tmp.strip().split()[0] +'\n')
+                    cnt_failed+=1
+                    continue
+                self.record_w.write_recore(img_dict)
+                #label_show(img_dict,'bgr')
+                total_img+=1
+            view_bar('Conversion progress', count + 1,dataset_img_num)
+        print('\nConversion is complete!')
+        print('total img:',total_img)
+        print("aug failed:",cnt_failed)
+        property_w.write("{},{}".format(len(NAME_LABEL_MAP.keys()),total_img))
+        property_w.close()
+        self.record_w.close()
+        anno_p.close()
+        failed_aug_path.close()
+
+def label_show(img_dict,mode='rgb'):
+    img = img_dict['img_data']
+    if mode == 'rgb':
+        img = img[:,:,::-1]
+    img = np.array(img,dtype=np.uint8)
+    gt = img_dict['gt']
+    #print("img",img.shape)
+    #print("box",gt.shape)
+    for rectangle in gt:
+        #print(map(int,rectangle[5:]))
+        score_label = str("{:.2f}".format(rectangle[4]))
+        #score_label = str(1.0)
+        cv2.putText(img,score_label,(int(rectangle[0]),int(rectangle[1])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0))
+        cv2.rectangle(img,(int(rectangle[0]),int(rectangle[1])),(int(rectangle[2]),int(rectangle[3])),(255,0,0),1)
+        if len(rectangle) > 5:
+            for i in range(5,15,2):
+                cv2.circle(img,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
+    cv2.imshow("img",img)
+    cv2.waitKey(0)
 
 def view_bar(message, num, total):
     rate = num / total
@@ -259,10 +386,13 @@ def view_bar(message, num, total):
     sys.stdout.write(r)
     sys.stdout.flush()
 
+
 if __name__ == '__main__':
     args = parms()
     dataset = args.dataset_name
     if 'Wider' in dataset:
-        convert_widerface_to_tfrecord(args)
+        ct = WiderFace2TFrecord(args)
+        ct.convert_widerface_to_tfrecord()
     elif 'VOC' in dataset:
         convert_pascal_to_tfrecord(args)
+        

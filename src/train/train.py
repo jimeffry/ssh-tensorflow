@@ -33,11 +33,12 @@ def parms():
                         help='train on gpu num')
     parser.add_argument('--property-file',dest='property_file',type=str,\
                         default='../../data/property.txt',help='nums of train dataset images')
-    parser.add_argument('--data-record',dest='data_record',type=str,\
+    parser.add_argument('--data-record-dir',dest='data_record_dir',type=str,\
                         default='../../data/',help='tensorflow data record')
     return parser.parse_args()
 
-def train(**kargs):
+def train(args):
+    '''
     model_path = kargs.get('model_path','../../models/ssh')
     load_num = kargs.get('load_num',0)
     log_dir = kargs.get('log_path','../../logs')
@@ -46,18 +47,25 @@ def train(**kargs):
     save_weight_period = kargs.get('save_weight_period',1)
     property_file = kargs.get('property_file','../../data/property.txt')
     data_record = kargs.get('data_record','../../data/tfrecord')
+    '''
+    model_path = args.model_path
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
+    load_num = args.load_num
+    log_dir = args.log_path
+    epochs = args.epochs
+    batch_size = args.batch_size
+    save_weight_period = args.save_weight_period
+    data_record_dir = args.data_record_dir
+    property_file = os.path.join(data_record_dir,cfgs.DATASET_NAME,'property.txt')
     Property = load_property(property_file)
     train_img_nums = Property['img_nums']
     faster_rcnn = build_ssh_net.DetectionNetwork(base_network_name=cfgs.NET_NAME,
                                                        is_training=True)
     with tf.name_scope('get_batch'):
-        img_name_batch, img_batch, gtboxes_and_label_batch, num_objects_batch = \
-            next_batch(dataset_name=cfgs.DATASET_NAME,  # 'pascal', 'coco'
-                       data_prefix=data_record,
-                       batch_size=batch_size,
-                       shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
-                       is_training=True)
-        gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
+        tfrd = Read_Tfrecord(cfgs.DATASET_NAME,data_record_dir,batch_size,True)
+        img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch = tfrd.next_batch()
+        #gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
     # list as many types of layers as possible, even if they are not used now
     with tf.name_scope('build_ssh_trainnet'):
         result_dict, losses_dict = faster_rcnn.build_ssh_network(input_img_batch=img_batch,
@@ -95,9 +103,9 @@ def train(**kargs):
     tf.summary.scalar('LOSS/total_loss', total_loss)
     tf.summary.scalar('LOSS/regular_weights', weight_decay_loss)
 
-    gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=img_batch,
-                                                                   boxes=gtboxes_and_label[:, :-1],
-                                                                   labels=gtboxes_and_label[:, -1])
+    #gtboxes_in_img = show_box_in_tensor.draw_boxes_with_categories(img_batch=img_batch,
+     #                                                              boxes=gtboxes_and_label[:, :-1],
+      #                                                             labels=gtboxes_and_label[:, -1])
     if cfgs.ADD_BOX_IN_TENSORBOARD:
         detections_in_img_m1 = \
             show_box_in_tensor.draw_boxes_with_categories_and_scores(img_batch=img_batch,
@@ -128,7 +136,6 @@ def train(**kargs):
                                      values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
     tf.summary.scalar('lr', lr)
     optimizer = tf.train.MomentumOptimizer(lr, momentum=cfgs.MOMENTUM)
-
     # ---------------------------------------------------------------------------------------------compute gradients
     gradients = optimizer.compute_gradients(total_loss)
     # enlarge_gradients for bias
@@ -203,13 +210,7 @@ if __name__ == '__main__':
     args = parms()
     gpu_group = args.gpu_list
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_group
-    model_path = args.model_path
-    load_num = args.load_num
-    log_path = args.log_path
-    epoch_num = args.epochs
-    train(**args)
-
-#
+    train(args)
 
 
 
