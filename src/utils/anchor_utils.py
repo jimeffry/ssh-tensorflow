@@ -6,7 +6,7 @@ import random
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..','configs'))
-import cfgs
+import config as cfgs
 
 
 def make_anchors(base_anchor_size, anchor_scales, anchor_ratios,

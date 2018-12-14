@@ -9,6 +9,7 @@
 #modified:
 #description  face detect testing caffe model
 ####################################################
+import numpy as np
 
 def bbox_overlaps(boxes1, boxes2):
     """Computes IoU overlaps between two sets of boxes.

@@ -9,12 +9,13 @@ from __future__ import division
 from __future__ import print_function
 import sys
 import os 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from configs import cfgs
+sys.path.append(os.path.join(os.path.dirname(__file__), '../configs'))
+import config as cfgs
 import numpy as np
 import numpy.random as npr
-from utils import encode_and_decode
-from utils.boxes_overlap import bbox_overlaps
+sys.path.append(os.path.join(os.path.dirname(__file__), '../utils'))
+import encode_and_decode
+from boxes_overlap import bbox_overlaps
 
 
 def proposal_target_layer(rpn_rois, gt_boxes, name):
@@ -127,10 +128,10 @@ def _sample_rois(all_rois, gt_boxes, fg_rois_per_image,
     gt_assignment = overlaps.argmax(axis=1)
     max_overlaps = overlaps.max(axis=1)
     labels = gt_boxes[gt_assignment, -1]
-
+    #print('gt_idx',gt_assignment)
     # Select foreground RoIs as those with >= FG_THRESH overlap
     fg_inds = np.where(max_overlaps >= iou_positive_threshold_up)[0]
-
+    #print('fg roi-gt max_iou ', max_overlaps[fg_inds])
     # Guard against the case when an image has fewer than fg_rois_per_image
     # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
     bg_inds = np.where((max_overlaps < iou_negative_threshold_up) &
@@ -139,7 +140,6 @@ def _sample_rois(all_rois, gt_boxes, fg_rois_per_image,
     # Guard against the case when an image has fewer than fg_rois_per_image
     # foreground RoIs
     fg_rois_per_this_image = min(fg_rois_per_image, fg_inds.size)
-
     # Sample foreground regions without replacement
     if fg_inds.size > 0:
         fg_inds = npr.choice(fg_inds, size=int(fg_rois_per_this_image), replace=False)
@@ -150,21 +150,25 @@ def _sample_rois(all_rois, gt_boxes, fg_rois_per_image,
     # Sample background regions without replacement
     if bg_inds.size > 0:
         bg_inds = npr.choice(bg_inds, size=int(bg_rois_per_this_image), replace=False)
-
     # print("second fileter, fg_size: {} || bg_size: {}".format(fg_inds.shape, bg_inds.shape))
     # The indices that we're selecting (both fg and bg)
     keep_inds = np.append(fg_inds, bg_inds)
-
     # Select sampled values from various arrays:
     labels = labels[keep_inds]
-
     # Clamp labels for the background RoIs to 0
     labels[int(fg_rois_per_this_image):] = 0
     rois = all_rois[keep_inds]
-
     bbox_target_data = _compute_targets(
         rois, gt_boxes[gt_assignment[keep_inds], :-1], labels)
     bbox_targets = \
         _get_bbox_regression_labels(bbox_target_data, num_classes)
-
     return labels, rois, bbox_targets, keep_inds
+
+if __name__ == '__main__':
+    roi = np.array([[10,10,20,20],[30,30,100,100],[50,50,60,60],[40,40,70,70],[200,200,250,250],[150,150,160,160]])
+    gt = np.array([[11,11,21,21,1],[31,31,80,80,1],[210,210,240,240,1]])
+    rois, labels, bbox_targets, keep_inds = proposal_target_layer(roi,gt,'M1')
+    print('roi',rois)
+    print('keep',keep_inds)
+    #print('gt',bbox_targets)
+    print('label',labels)

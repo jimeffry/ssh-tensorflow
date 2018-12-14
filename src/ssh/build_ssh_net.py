@@ -8,15 +8,18 @@ import tensorflow.contrib.layers as tfc
 import numpy as np
 from proposal_target_layer import proposal_target_layer
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from network import resnet as models
-from network import mobilenet_v2
-from utils import encode_and_decode
-from utils import boxes_utils
-from utils import anchor_utils
-from configs import config as cfgs
-from losses import losses
-from utils import show_box_in_tensor
+sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
+import resnet as models
+#import mobilenet_v2
+sys.path.append(os.path.join(os.path.dirname(__file__), '../utils'))
+import encode_and_decode
+import boxes_utils
+import anchor_utils
+import show_box_in_tensor
+sys.path.append(os.path.join(os.path.dirname(__file__), '../configs'))
+import config as cfgs
+sys.path.append(os.path.join(os.path.dirname(__file__), '../losses'))
+import losses
 
 
 class DetectionNetwork(object):
@@ -30,13 +33,14 @@ class DetectionNetwork(object):
         self.m3_num_anchors_per_location = len(cfgs.M3_ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
 
     def build_base_network(self, input_img_batch,**kargs):
-        if self.base_network_name.startswith('resnet'):
-            return models.get_symble(input_img_batch, net_name=self.base_network_name,\
-                                     train_fg=self.is_training,**kargs)
-        elif self.base_network_name.startswith('MobilenetV2'):
-            return mobilenet_v2.get_symble(input_img_batch, train_fg=self.is_training,**kargs)
-        else:
-            raise ValueError('Sry, we only support resnet or mobilenet_v2')
+        with tf.name_scope("base_network"):
+            if self.base_network_name.startswith('resnet'):
+                return models.get_symble(input_img_batch, net_name=self.base_network_name,\
+                                        train_fg=self.is_training,**kargs)
+            elif self.base_network_name.startswith('MobilenetV2'):
+                return mobilenet_v2.get_symble(input_img_batch, train_fg=self.is_training,**kargs)
+            else:
+                raise ValueError('Sry, we only support resnet or mobilenet_v2')
 
     def postprocess_ssh(self, rois, bbox_ppred, scores, img_shape, iou_threshold):
         '''
@@ -168,7 +172,7 @@ class DetectionNetwork(object):
         labels_m = tf.to_int32(labels)
         labels_m = tf.reshape(labels_m, [-1],name='label_shape')
         bbox_targets_m = tf.reshape(bbox_targets, [-1, 4 * (cfgs.CLASS_NUM + 1)],name='bbox_target_shape')
-        return rois_m,labels_m,bbox_target_m
+        return rois_m,labels_m,bbox_targets_m
 
     def get_pred_results_by_indx(self,box_pred,cls_score,cls_prob,keep_inds):
         box_pred_m = tf.gather(box_pred, keep_inds,name='box_pred_sel')
@@ -206,13 +210,13 @@ class DetectionNetwork(object):
         anchors_m2 = anchor_utils.make_anchors(base_anchor_size=cfgs.BASE_ANCHOR_SIZE_LIST[0],
                                                anchor_scales=cfgs.M2_ANCHOR_SCALES,
                                                anchor_ratios=cfgs.ANCHOR_RATIOS,
-                                               featuremap_height=feature_stride16,
+                                               featuremap=feature_stride16,
                                                stride=[cfgs.ANCHOR_STRIDE[1]],
                                                name="make_anchors_for_m2")
         anchors_m3 = anchor_utils.make_anchors(base_anchor_size=cfgs.BASE_ANCHOR_SIZE_LIST[0],
                                                anchor_scales=cfgs.M3_ANCHOR_SCALES,
                                                anchor_ratios=cfgs.ANCHOR_RATIOS,
-                                               featuremap_height=feature_m3,
+                                               featuremap=feature_m3,
                                                stride=[cfgs.ANCHOR_STRIDE[2]],
                                                name="make_anchors_for_m3")
         # refer to paper: Seeing Small Faces from Robust Anchor’s Perspective
@@ -223,21 +227,21 @@ class DetectionNetwork(object):
                     tf.py_func(proposal_target_layer,
                                [anchors_m1, gtboxes_batch, 'M1'],
                                [tf.float32, tf.float32, tf.float32, tf.int32],name='M1')
-                rois_m1,labels_m1,bbox_target_m1 = self.get_unify_shape(rois_m1,labels_m1,bbox_target_m1)
+                rois_m1,labels_m1,bbox_targets_m1 = self.get_unify_shape(rois_m1,labels_m1,bbox_targets_m1)
                 self.add_roi_batch_img_smry(input_img_batch, rois_m1, labels_m1, 'm1')
             with tf.variable_scope('sample_ssh_minibatch_m2'):
                 rois_m2, labels_m2, bbox_targets_m2, keep_inds_m2 = \
                     tf.py_func(proposal_target_layer,
                                [anchors_m2, gtboxes_batch, 'M2'],
                                [tf.float32, tf.float32, tf.float32, tf.int32],name='M2')
-                rois_m2,labels_m2,bbox_target_m2 = self.get_unify_shape(rois_m2,labels_m2,bbox_target_m2)
+                rois_m2,labels_m2,bbox_targets_m2 = self.get_unify_shape(rois_m2,labels_m2,bbox_targets_m2)
                 self.add_roi_batch_img_smry(input_img_batch, rois_m2, labels_m2, 'm2')
             with tf.variable_scope('sample_ssh_minibatch_m3'):
                 rois_m3, labels_m3, bbox_targets_m3, keep_inds_m3 = \
                     tf.py_func(proposal_target_layer,
                                [anchors_m3, gtboxes_batch, 'M3'],
                                [tf.float32, tf.float32, tf.float32, tf.int32],name='M3')
-                rois_m3,labels_m3,bbox_target_m3 = self.get_unify_shape(rois_m3,labels_m3,bbox_target_m3)
+                rois_m3,labels_m3,bbox_targets_m3 = self.get_unify_shape(rois_m3,labels_m3,bbox_targets_m3)
                 self.add_roi_batch_img_smry(input_img_batch, rois_m3, labels_m3, 'm3')
 
         if not self.is_training:
@@ -352,7 +356,7 @@ if __name__ == '__main__':
     gtboxes_and_label = tf.constant([[10,10,100,100,0],[20,20,200,200,1],[50,50,300,300,1]],dtype=tf.int32)
     #img_batch,gtboxes_and_label = tf.py_func(get_imglabel,[1],[tf.float32,tf.int32])
     faster_rcnn = DetectionNetwork(base_network_name=cfgs.NET_NAME,is_training=True)
-    result_dict, losses_dict = faster_rcnn.build_whole_detection_network(input_img_batch=img_batch,gtboxes_batch=gtboxes_and_label)
+    result_dict, losses_dict = faster_rcnn.build_ssh_network(input_img_batch=img_batch,gtboxes_batch=gtboxes_and_label)
     sess = tf.Session()
     summary_op = tf.summary.merge_all()
-    wr = tf.summary.FileWriter('/home/lxy/Develop/Center_Loss/git_prj/SSH_prj/SSH_Tensorflow/logs',sess.graph)
+    wr = tf.summary.FileWriter('/home/lxy/Develop/Center_Loss/git_prj/SSH_prj/ssh-tensorflow/logs',sess.graph)

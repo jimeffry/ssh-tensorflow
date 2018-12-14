@@ -9,11 +9,11 @@ import numpy as np
 import cv2
 import os 
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from configs import cfgs
-from label_name_dict.label_dict import LABEl_NAME_MAP
-
-from box_utils import draw_box_in_img
+sys.path.append(os.path.join(os.path.dirname(__file__), '../configs'))
+import config as cfgs
+from label_dict import LABEl_NAME_MAP
+sys.path.append(os.path.join(os.path.dirname(__file__), '../utils'))
+import draw_box_in_img
 
 def only_draw_boxes(img_batch, boxes):
 

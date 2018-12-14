@@ -10,12 +10,15 @@ import os, sys
 import numpy as np
 import time
 import argparse
-sys.path.append("../")
-from configs import config as cfgs
-from ssh import build_ssh_net
-from prepare_data.read_tfrecord import next_batch
-from utils.box_utils import show_box_in_tensor
-from utils.get_property import load_property
+sys.path.append(os.path.join(os.path.dirname(__file__),'../configs'))
+import config as cfgs
+sys.path.append(os.path.join(os.path.dirname(__file__),'../ssh'))
+import build_ssh_net
+sys.path.append(os.path.join(os.path.dirname(__file__),"../prepare_data"))
+from read_tfrecord import Read_Tfrecord
+sys.path.append(os.path.join(os.path.dirname(__file__),'../utils'))
+import show_box_in_tensor
+from get_property import load_property
 
 def parms():
     parser = argparse.ArgumentParser(description='SSH training')
@@ -69,7 +72,7 @@ def train(args):
     # list as many types of layers as possible, even if they are not used now
     with tf.name_scope('build_ssh_trainnet'):
         result_dict, losses_dict = faster_rcnn.build_ssh_network(input_img_batch=img_batch,
-                                            gtboxes_batch=gtboxes_and_label,w_decay=cfgs.WEIGHT_DECAY)
+                                            gtboxes_batch=gtboxes_and_label_batch,w_decay=cfgs.WEIGHT_DECAY)
     # ----------------------------------------------------------------------------------------------------build loss
     weight_decay_loss = tf.add_n(tf.losses.get_regularization_losses())
     # weight_decay_loss = tf.add_n(tf.losses.get_regularization_losses())
@@ -175,10 +178,10 @@ def train(args):
         summary_writer = tf.summary.FileWriter(summary_path, graph=sess.graph)
         try:
             for epoch_tmp in range(epochs):
-                for step in range(np.round(train_img_nums/batch_size)):
+                for step in range(np.ceil(train_img_nums/batch_size).astype(np.int32)):
                     training_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
                     if step % cfgs.SHOW_TRAIN_INFO_INTE != 0 and step % cfgs.SMRY_ITER != 0:
-                    _, global_stepnp = sess.run([train_op, global_step])
+                        _, global_stepnp = sess.run([train_op, global_step])
                     else:
                         if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
                             start = time.time()

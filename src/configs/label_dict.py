@@ -12,7 +12,7 @@ elif cfgs.DATASET_NAME == 'aeroplane':
         'back_ground': 0,
         'aeroplane': 1
     }
-elif cfgs.DATASET_NAME == 'WIDER':
+elif cfgs.DATASET_NAME == 'WiderFace':
     NAME_LABEL_MAP = {
         'back_ground': 0,
         'face': 1
