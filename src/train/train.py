@@ -1,5 +1,15 @@
 # -*- coding:utf-8 -*-
-
+# -*- coding: utf-8 -*-
+###############################################
+#created by :  lxy
+#Time:  2018/12/10 15:09
+#project: Face detect
+#company: 
+#rversion: 0.1
+#tool:   python 2.7
+#modified:
+#description  face detect 
+####################################################
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division

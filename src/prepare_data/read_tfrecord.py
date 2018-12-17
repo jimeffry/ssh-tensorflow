@@ -1,4 +1,14 @@
 # -*- coding: utf-8 -*-
+###############################################
+#created by :  lxy
+#Time:  2018/12/10 15:09
+#project: Face detect
+#company: 
+#rversion: 0.1
+#tool:   python 2.7
+#modified:
+#description  face detect 
+####################################################
 
 from __future__ import absolute_import
 from __future__ import print_function
@@ -8,6 +18,7 @@ import numpy as np
 import tensorflow as tf
 import os
 from image_preprocess import short_side_resize
+from image_preprocess import norm_data
 from convert_data_to_tfrecord import label_show
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../configs'))
@@ -53,19 +64,12 @@ class Read_Tfrecord(object):
         num_objects = tf.cast(features['num_objects'], tf.int32)
         return img_name, img, gtboxes_and_label, num_objects
 
-    def norm_data(self,img):
-        img[:,:,0] = img[:,:,0]- cfgs.PIXEL_MEAN[0] # R
-        img[:,:,1] = img[:,:,1]- cfgs.PIXEL_MEAN[1] # G
-        img[:,:,2] = img[:,:,2]- cfgs.PIXEL_MEAN[2] # B
-        img = img/cfgs.PIXEL_NORM
-        return img.astype(np.float32)
-
     def process_img(self,img,gt):
         if cfgs.IMG_LIMITATE:
             img, gt = short_side_resize(img_tensor=img, gtboxes_and_label=gt,
                                         target_shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
                                         length_limitation=cfgs.IMG_MAX_LENGTH)
-        img = tf.py_func(self.norm_data,[img],tf.float32)
+        img = tf.py_func(norm_data,[img],tf.float32)
         img.set_shape([None,None,3])
         return img,gt
 

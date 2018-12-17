@@ -6,6 +6,10 @@ from __future__ import division
 
 import tensorflow as tf
 import numpy as np
+import sys 
+import os 
+sys.path.append(os.path.join(os.path.dirname(__file__), '../configs'))
+import config as cfgs
 
 def max_length_limitation(length, length_limitation):
     return tf.cond(tf.less(length, length_limitation),
@@ -73,3 +77,16 @@ def random_flip_left_right(img_tensor, gtboxes_and_label):
 
     return img_tensor,  gtboxes_and_label
 
+def norm_data(img):
+    img[:,:,0] = img[:,:,0]- cfgs.PIXEL_MEAN[0] # R
+    img[:,:,1] = img[:,:,1]- cfgs.PIXEL_MEAN[1] # G
+    img[:,:,2] = img[:,:,2]- cfgs.PIXEL_MEAN[2] # B
+    img = img/cfgs.PIXEL_NORM
+    return img.astype(np.float32)
+
+def de_norm_data(img):
+    img = img * cfgs.PIXEL_NORM
+    img[:,:,0] = img[:,:,0]+ cfgs.PIXEL_MEAN[0]
+    img[:,:,1] = img[:,:,1]+ cfgs.PIXEL_MEAN[1] # G
+    img[:,:,2] = img[:,:,2]+ cfgs.PIXEL_MEAN[2] # B
+    return img.astype(np.uint8)

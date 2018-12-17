@@ -125,7 +125,7 @@ def draw_boxes_with_label_and_scores(img_array, boxes, labels, scores):
 
     out_img_obj = Image.blend(raw_img_obj, img_obj, alpha=0.5)
 
-    return np.array(out_img_obj)
+    return np.array(out_img_obj,dtype=np.uint8)
 
 
 if __name__ == '__main__':

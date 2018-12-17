@@ -5,5 +5,8 @@ This is a tensorflow re-implementation of [ SSH: Single Stage Headless Face Dete
 
 This project is completed by [YangXue](https://github.com/yangxue0827) and [YangJirui](https://github.com/yangJirui). 
 
-## WiderFace     
-![1](wider.gif)
+## requist
+tensorflow >=1.5.0
+
+## WiderFace 
+![test](./src/test/det_test.jpg)
