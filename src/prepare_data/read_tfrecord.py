@@ -64,7 +64,7 @@ class Read_Tfrecord(object):
         if cfgs.IMG_LIMITATE:
             img, gt = short_side_resize(img_tensor=img, gtboxes_and_label=gt,
                                         target_shortside_len=cfgs.IMG_SHORT_SIDE_LEN,
-                                        ength_limitation=cfgs.IMG_MAX_LENGTH)
+                                        length_limitation=cfgs.IMG_MAX_LENGTH)
         img = tf.py_func(self.norm_data,[img],tf.float32)
         img.set_shape([None,None,3])
         return img,gt

@@ -14,9 +14,9 @@ ROOT_PATH = os.path.abspath('../')
 print(20*"++--")
 print(ROOT_PATH)
 GPU_GROUP = "3"
-SHOW_TRAIN_INFO_INTE = 10
-SMRY_ITER = 100
-SAVE_WEIGHTS_INTE = 10000
+SHOW_TRAIN_INFO_INTE = 1000
+SMRY_ITER = 1000000
+SAVE_WEIGHTS_INTE = 10
 
 # ------------------------------------------ Train config
 BN_USE = True 
@@ -39,16 +39,16 @@ GRADIENT_CLIPPING_BY_NORM = None   # 10.0  if None, will not clip
 EPSILON = 1e-5
 MOMENTUM = 0.9
 LR = 0.001
-DECAY_STEP = [50000, 70000]
+DECAY_STEP = [150000, 300000]
 MAX_ITERATION = 200000
 
 # -------------------------------------------- Data_preprocess_config 
 DATASET_NAME = 'WiderFace'  # 'ship', 'spacenet', 'pascal', 'coco'
 PIXEL_MEAN = [123.68, 116.779, 103.939]  # R, G, B. In tf, channel is RGB. In openCV, channel is BGR
 PIXEL_NORM = 128.0
-IMG_LIMITATE = 0
-IMG_SHORT_SIDE_LEN = 1000
-IMG_MAX_LENGTH = 3000
+IMG_LIMITATE = 1
+IMG_SHORT_SIDE_LEN = 480
+IMG_MAX_LENGTH = 640
 CLASS_NUM = 1
 
 # --------------------------------------------- Network_config
@@ -56,9 +56,9 @@ BATCH_SIZE = 1
 INITIALIZER = tf.random_normal_initializer(mean=0.0, stddev=0.01)
 BBOX_INITIALIZER = tf.random_normal_initializer(mean=0.0, stddev=0.001)
 WEIGHT_DECAY = 0.00005 if NET_NAME.startswith('Mobilenet') else 0.0001
-CONTEXT_FILTER_NUM_M1 = 128
-CONTEXT_FILTER_NUM_M2 = 256
-CONTEXT_FILTER_NUM_M3 = 258
+M1_CHANNELS = 128
+M2_CHANNELS = 256
+M3_CHANNELS = 256
 
 # ---------------------------------------------Anchor config
 BASE_ANCHOR_SIZE_LIST = [16]

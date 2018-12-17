@@ -25,7 +25,7 @@ def parms():
     parser.add_argument('--load-num',dest='load_num',type=int,default=0,help='ckpt num')
     parser.add_argument('--save-weight-period',dest='save_weight_period',type=int,default=5,\
                         help='the period to save')
-    parser.add_argument('--epochs',type=int,default=20,help='train epoch nums')
+    parser.add_argument('--epochs',type=int,default=20000,help='train epoch nums')
     parser.add_argument('--batch-size',dest='batch_size',type=int,default=1,\
                         help='train batch size')
     parser.add_argument('--model-path',dest='model_path',type=str,default='../../models/ssh',\
@@ -185,12 +185,14 @@ def train(args):
                     else:
                         if step % cfgs.SHOW_TRAIN_INFO_INTE == 0 and step % cfgs.SMRY_ITER != 0:
                             start = time.time()
-                            _, global_stepnp, img_name, totalLoss = sess.run(
-                                    [train_op, global_step, img_name_batch, total_loss])
+                            _, global_stepnp, totalLoss,cls_m1,cls_m2,cls_m3,bbox_m1,bbox_m2,bbox_m3 = sess.run(
+                                    [train_op, global_step, total_loss,cls_loss_m1,cls_loss_m2,cls_loss_m3,bbox_loss_m1, \
+                                  bbox_loss_m2,bbox_loss_m3])
                             end = time.time()
-                            print(""" {}: step{}    image_name:{} |\t total_loss:{} |\t per_cost_time:{}s""" \
-                                .format(training_time, global_stepnp, str(img_name[0]), totalLoss,
-                                    (end - start)))
+                            print(""" {}: epoch{} step{}    |\t per_cost_time:{}s |\t total_loss:{} |\t cls_m1:{} |\t cls_m2:{}|\t cls_m3:{} |\t \
+                                    bb_m1:{} |\t bb_m2:{} |\t bb_m3:{}  """ \
+                                .format(training_time, epoch_tmp,global_stepnp,  (end - start),totalLoss,cls_m1,cls_m2,cls_m3,bbox_m1, \
+                                  bbox_m2,bbox_m3 ))
                         else:
                             if step % cfgs.SMRY_ITER == 0:
                                 _, global_stepnp, summary_str = sess.run([train_op, global_step, summary_op])
@@ -214,18 +216,6 @@ if __name__ == '__main__':
     gpu_group = args.gpu_list
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_group
     train(args)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

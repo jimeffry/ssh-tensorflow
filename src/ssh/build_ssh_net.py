@@ -102,9 +102,9 @@ class DetectionNetwork(object):
                 final_category = tf.gather(final_category, kept_indices)
         return final_boxes, final_scores, final_category
 
-    def context_module(self, feature_maps):
+    def context_module(self, feature_maps,channels):
         with tf.variable_scope('context_module'):
-            channels = feature_maps.get_shape().as_list()[-1]
+            #channels = feature_maps.get_shape().as_list()[-1]
             convbase = models.Conv_block(feature_maps,3,filter_num=channels //2,relu_type='relu6',\
                             bn_use=self.use_bn,train_fg=self.is_training,w_regular=self.w_regular,name='base_conv')
             conv1 = models.Conv_block(convbase,3,filter_num=channels //2,relu_type='relu6',\
@@ -116,10 +116,10 @@ class DetectionNetwork(object):
             output = tf.concat([conv1, conv2_2], axis=3, name='ct_concat')
             return output
 
-    def detection_module(self, feature_maps, num_anchors_per_location, scope):
+    def detection_module(self, feature_maps, num_anchors_per_location,channels,scope):
         with tf.variable_scope(scope):
-            channels = feature_maps.get_shape().as_list()[-1]
-            context = self.context_module(feature_maps)
+            #channels = feature_maps.get_shape().as_list()[-1]
+            context = self.context_module(feature_maps,channels)
             convbase= models.Conv_block(feature_maps,3,filter_num=channels,relu_type='relu6',\
                                 bn_use=self.use_bn,train_fg=self.is_training,w_regular=self.w_regular,name='dt_conv')
             concat_layer = tf.concat([convbase, context], axis=3, name='concat')
@@ -141,9 +141,9 @@ class DetectionNetwork(object):
         tf.summary.image('{}/pos_rois'.format(name), pos_in_img)
         tf.summary.image('{}/neg_rois'.format(name), neg_in_img)
 
-    def get_detection_out(self,feature_map,anchors_per_location,name_scope):
+    def get_detection_out(self,feature_map,anchors_per_location,channels,name_scope):
         with tf.variable_scope(name_scope):
-            cls_score, box_pred = self.detection_module(feature_map,anchors_per_location,name_scope)
+            cls_score, box_pred = self.detection_module(feature_map,anchors_per_location,channels,name_scope)
             box_pred = tf.reshape(box_pred, [-1, 4 * (cfgs.CLASS_NUM + 1)])
             cls_score = tf.reshape(cls_score, [-1, (cfgs.CLASS_NUM + 1)])
             cls_prob = tfc.softmax(cls_score, scope='cls_prob')
@@ -155,14 +155,14 @@ class DetectionNetwork(object):
             channels_16 = feature_c5.get_shape().as_list()[-1]
             channels_8 = feature_c4.get_shape().as_list()[-1]
             feature8_shape = tf.shape(feature_c4)
-            conv5_1= models.Conv_block(feature_c5,1,filter_num=channels_16 // 4,relu_type='relu6',\
+            conv5_1= models.Conv_block(feature_c5,1,filter_num=channels_16 // 8,relu_type='relu6',\
                                 bn_use=self.use_bn,train_fg=self.is_training,w_regular=self.w_regular,name='c5_conv')
             conv5_upsampling = tf.image.resize_bilinear(conv5_1, [feature8_shape[1], feature8_shape[2]],
                                                     name='m2_upsampling')
-            conv4_1= models.Conv_block(feature_c4,1,filter_num=channels_8 // 2,relu_type='relu6',\
+            conv4_1= models.Conv_block(feature_c4,1,filter_num=channels_8 // 4,relu_type='relu6',\
                                 bn_use=self.use_bn,train_fg=self.is_training,w_regular=self.w_regular,name='c4_1_conv')
             eltwise_sum = tf.add(conv5_upsampling,conv4_1)
-            feature_m1= models.Conv_block(eltwise_sum,3,filter_num=channels_8 // 2,relu_type='relu6',\
+            feature_m1= models.Conv_block(eltwise_sum,3,filter_num=channels_8 // 4,relu_type='relu6',\
                                 bn_use=self.use_bn,train_fg=self.is_training,w_regular=self.w_regular,\
                                 name='feature_m1_conv')
             return feature_m1,feature_m3
@@ -193,12 +193,15 @@ class DetectionNetwork(object):
             feature_m1,feature_m3 = self.get_feature_m1m3(feature_stride8,feature_stride16)
             box_pred_m3,cls_score_m3,cls_prob_m3 = self.get_detection_out(feature_m3,
                                                                         self.m3_num_anchors_per_location,
+                                                                        cfgs.M3_CHANNELS,
                                                                         'detection_module_m3')
             box_pred_m2,cls_score_m2,cls_prob_m2 = self.get_detection_out(feature_stride16,
                                                                         self.m2_num_anchors_per_location,
+                                                                        cfgs.M2_CHANNELS,
                                                                         'detection_module_m2')
             box_pred_m1,cls_score_m1,cls_prob_m1 = self.get_detection_out(feature_m1,
                                                                         self.m1_num_anchors_per_location,
+                                                                        cfgs.M1_CHANNELS,
                                                                         'detection_module_m1')
         # 3. generate_anchors
         anchors_m1 = anchor_utils.make_anchors(base_anchor_size=cfgs.BASE_ANCHOR_SIZE_LIST[0],
