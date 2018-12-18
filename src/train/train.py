@@ -88,15 +88,15 @@ def train(args):
     # weight_decay_loss = tf.add_n(tf.losses.get_regularization_losses())
     bbox_loss_m1 = losses_dict['bbox_loss_m1']
     cls_loss_m1 = losses_dict['cls_loss_m1']
-    total_loss_m1 = bbox_loss_m1 + cls_loss_m1
+    total_loss_m1 = bbox_loss_m1 * cfgs.M1_LOCATION_LOSS_WEIGHT + cls_loss_m1 * cfgs.M1_LOCATION_LOSS_WEIGHT
 
     bbox_loss_m2 = losses_dict['bbox_loss_m2']
     cls_loss_m2 = losses_dict['cls_loss_m2']
-    total_loss_m2 = bbox_loss_m2 + cls_loss_m2
+    total_loss_m2 = bbox_loss_m2 * cfgs.M2_LOCATION_LOSS_WEIGHT + cls_loss_m2 * cfgs.M2_LOCATION_LOSS_WEIGHT
 
     bbox_loss_m3 = losses_dict['bbox_loss_m3']
     cls_loss_m3 = losses_dict['cls_loss_m3']
-    total_loss_m3 = bbox_loss_m3 + cls_loss_m3
+    total_loss_m3 = bbox_loss_m3 * cfgs.M3_LOCATION_LOSS_WEIGHT + cls_loss_m3 * cfgs.M3_LOCATION_LOSS_WEIGHT
 
     total_loss = total_loss_m1 + total_loss_m2 + total_loss_m3 + weight_decay_loss
 
@@ -145,8 +145,8 @@ def train(args):
 
     global_step = tf.train.get_or_create_global_step()
     lr = tf.train.piecewise_constant(global_step,
-                                     boundaries=[np.int64(cfgs.DECAY_STEP[0]), np.int64(cfgs.DECAY_STEP[1])],
-                                     values=[cfgs.LR, cfgs.LR / 10., cfgs.LR / 100.])
+                                     boundaries=[np.int64(x) for x in cfgs.DECAY_STEP],
+                                     values=[y for y in cfgs.LR])
     tf.summary.scalar('lr', lr)
     optimizer = tf.train.MomentumOptimizer(lr, momentum=cfgs.MOMENTUM)
     # ---------------------------------------------------------------------------------------------compute gradients
@@ -199,9 +199,9 @@ def train(args):
                                     [train_op, global_step, total_loss,cls_loss_m1,cls_loss_m2,cls_loss_m3,bbox_loss_m1, \
                                   bbox_loss_m2,bbox_loss_m3])
                             end = time.time()
-                            print(""" {}: epoch{} step{}    |\t per_cost_time:{}s |\t total_loss:{} |\t cls_m1:{} |\t cls_m2:{}|\t cls_m3:{} |\t \
-                                    bb_m1:{} |\t bb_m2:{} |\t bb_m3:{}  """ \
-                                .format(training_time, epoch_tmp,global_stepnp,  (end - start),totalLoss,cls_m1,cls_m2,cls_m3,bbox_m1, \
+                            print(""" %s  epoch:%d  step:%d  |  per_cost_time:%.3f s |  total_loss:%.3f |  cls_m1:%.3f |  cls_m2:%.3f |  cls_m3:%.3f |  \
+                                    bb_m1:%.3f |  bb_m2:%.3f |  bb_m3:%.3f  """ \
+                                % (str(training_time), epoch_tmp,global_stepnp, (end - start),totalLoss,cls_m1,cls_m2,cls_m3,bbox_m1, \
                                   bbox_m2,bbox_m3 ))
                         else:
                             if step % cfgs.SMRY_ITER == 0:

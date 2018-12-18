@@ -33,11 +33,11 @@ import nms
 
 
 def merge_result(result_dict):
-    final_bbox = [result_dict['final_bbox_m1'], result_dict['final_bbox_m2'], result_dict['final_bbox_m2']]
+    final_bbox = [result_dict['final_bbox_m1'], result_dict['final_bbox_m2'], result_dict['final_bbox_m3']]
     final_scores = [result_dict['final_scores_m1'], result_dict['final_scores_m2'], result_dict['final_scores_m3']]
     final_category = [result_dict['final_category_m1'], result_dict['final_category_m2'],
                       result_dict['final_category_m3']]
-
+    #final_bbox = [result_dict['final_bbox_m1'], result_dict['final_bbox_m2'], result_dict['final_bbox_m2']]
     final_bbox = np.concatenate(final_bbox, axis=0)
     final_scores = np.concatenate(final_scores, axis=0)
     final_category = np.concatenate(final_category, axis=0)
@@ -97,8 +97,8 @@ def detect(det_net,inference_save_path,img_path,model_path):
         #final_detections = de_norm_data(final_detections)
         #nake_name = a_img_name.split('/')[-1]
         # print (inference_save_path + '/' + nake_name)
-        cv2.imwrite(inference_save_path + '/' + 'det_test.jpg',
-                    final_detections[:, :, ::-1])
+        #cv2.imwrite(inference_save_path + '/' + 'det_test.jpg',
+         #           final_detections[:, :, ::-1])
         print('1 image cost {}s'.format( end - start))
         cv2.imshow('test',final_detections[:, :, ::-1])
         cv2.waitKey(0)
@@ -123,7 +123,7 @@ def parse_args():
                         default='inference_results', type=str)
     parser.add_argument('--model-dir', dest='model_dir',
                         help='models',
-                        default='inference_results', type=str)
+                        default='weights', type=str)
     parser.add_argument('--GPU', dest='GPU',
                         help='gpu id ',
                         default='0', type=str)
