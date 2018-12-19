@@ -4,7 +4,7 @@ import os
 import tensorflow as tf
 
 # ------------------------------------------------
-NET_NAME = 'resnet50'#'resnet100'  # 'MobilenetV2'
+NET_NAME = 'resnet50'#'resnet100'  # 'mobilenetv2' 'resnet50'
 ADD_BOX_IN_TENSORBOARD = True
 #------------------------------------------ convert data to tfrecofr config
 BIN_DATA = 0 # whether read image data from binary
@@ -14,9 +14,8 @@ ROOT_PATH = os.path.abspath('../')
 print(20*"++--")
 print(ROOT_PATH)
 GPU_GROUP = "3"
-SHOW_TRAIN_INFO_INTE = 1000
-SMRY_ITER = 1000000
-SAVE_WEIGHTS_INTE = 10
+SHOW_TRAIN_INFO_INTE = 5000
+SMRY_ITER = 100000
 
 # ------------------------------------------ Train config
 BN_USE = True 
@@ -44,7 +43,7 @@ DECAY_STEP = [150000, 300000,450000]
 DATASET_NAME = 'WiderFace'  # 'ship', 'spacenet', 'pascal', 'coco'
 PIXEL_MEAN = [123.68, 116.779, 103.939]  # R, G, B. In tf, channel is RGB. In openCV, channel is BGR
 PIXEL_NORM = 128.0
-IMG_LIMITATE = 1
+IMG_LIMITATE = 0
 IMG_SHORT_SIDE_LEN = 480
 IMG_MAX_LENGTH = 640
 CLASS_NUM = 1
@@ -105,9 +104,9 @@ M3_IOU_NEGATIVE_THRESHOLD_DOWN = 0.0   # 0.1 < IOU < 0.5 is negative
 M3_MINIBATCH_SIZE = 256  # if is -1, that is train with OHEM
 M3_POSITIVE_RATE = 0.25
 
-SHOW_SCORE_THRSHOLD = 0.8  # only show in tensorboard
-SSH_NMS_MAX_BOXES_PER_CLASS = 100
+SHOW_SCORE_THRSHOLD = 0.9  # only show in tensorboard
+SSH_NMS_MAX_BOXES_PER_CLASS = 300
 
 ADD_GTBOXES_TO_TRAIN = False
-FINAL_NMS_IOU_THRESHOLD = 0.2
+FINAL_NMS_IOU_THRESHOLD = 0.3
 

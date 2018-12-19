@@ -114,6 +114,7 @@ def get_symble(input_image,**kargs):
     w_r = tfc.l2_regularizer(w_decay)
     width_mult = kargs.get('width_mult',1.0)
     class_num = kargs.get('class_num',81)
+    assert net_name.lower() in ['mobilenet','mobilenetv2'],"Please sel netname: mobilenet or mobilenetv2"
     cn = [int(x*width_mult) for x in [32,16,24,32,64,96,160,320,1280]]
     with tf.variable_scope(net_name) :
         b0 = Conv_block(input_image,3,filter_num=cn[0],conv_stride=2,relu_type='relu6', \
@@ -125,8 +126,8 @@ def get_symble(input_image,**kargs):
         b5 = Inverted_residual_seq(b4,6,cn[4],cn[5],1,3,seq_name='res5',**kargs)
         b6 = Inverted_residual_seq(b5,6,cn[5],cn[6],2,3,seq_name='res6',**kargs)
         b7 = Inverted_residual_seq(b6,6,cn[6],cn[7],1,1,seq_name='res7',**kargs)
-        b8 = Conv_block(b7,1,filter_num=cn[8],conv_stride=1,relu_type='relu6', \
-                        name='cb2',**kargs)
+        #b8 = Conv_block(b7,1,filter_num=cn[8],conv_stride=1,relu_type='relu6', \
+         #               name='cb2',**kargs)
         #p1 = KL.GlobalAveragePooling2D()(b8)
         #fc = KL.Dense(class_num,use_bias=False,kernel_regularizer=l2(0.0005),name='fc1')(p1)
         #pred = KL.Activation('softmax',name='predictions')(fc)

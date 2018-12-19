@@ -75,12 +75,12 @@ def train(args):
     train_img_nums = Property['img_nums']
     faster_rcnn = build_ssh_net.DetectionNetwork(base_network_name=cfgs.NET_NAME,
                                                        is_training=True)
-    with tf.name_scope('get_batch'):
+    with tf.variable_scope('get_batch'):
         tfrd = Read_Tfrecord(cfgs.DATASET_NAME,data_record_dir,batch_size,True)
         img_name_batch, img_batch, gtboxes_and_label_batch, num_obs_batch = tfrd.next_batch()
         #gtboxes_and_label = tf.reshape(gtboxes_and_label_batch, [-1, 5])
     # list as many types of layers as possible, even if they are not used now
-    with tf.name_scope('build_ssh_trainnet'):
+    with tf.variable_scope('build_ssh_trainnet'):
         result_dict, losses_dict = faster_rcnn.build_ssh_network(input_img_batch=img_batch,
                                             gtboxes_batch=gtboxes_and_label_batch,w_decay=cfgs.WEIGHT_DECAY)
     # ----------------------------------------------------------------------------------------------------build loss
@@ -155,7 +155,7 @@ def train(args):
     if cfgs.MUTILPY_BIAS_GRADIENT:
         gradients = faster_rcnn.enlarge_gradients_for_bias(gradients)
     if cfgs.GRADIENT_CLIPPING_BY_NORM:
-        with tf.name_scope('clip_gradients'):
+        with tf.variable_scope('clip_gradients'):
             gradients = tfc.training.clip_gradient_norms(gradients,
                                                           cfgs.GRADIENT_CLIPPING_BY_NORM)
     # train_op
@@ -210,7 +210,7 @@ def train(args):
                                 summary_writer.flush()
                 if (epoch_tmp > 0 and epoch_tmp % save_weight_period == 0) or (epoch_tmp == epochs - 1):
                     save_dir = model_path
-                    saver.save(sess, save_dir,global_step)
+                    saver.save(sess, save_dir,epoch_tmp)
                     print(' weights had been saved')
         except tf.errors.OutOfRangeError:
             print("Trianing is over")

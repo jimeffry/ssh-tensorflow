@@ -44,7 +44,7 @@ def clip_boxes_to_img_boundaries(decode_boxes, img_shape):
     :return: decode boxes, and already clip to boundaries
     '''
 
-    with tf.name_scope('clip_boxes_to_img_boundaries'):
+    with tf.variable_scope('clip_boxes_to_img_boundaries'):
 
         # xmin, ymin, xmax, ymax = tf.unstack(decode_boxes, axis=1)
         xmin = decode_boxes[:, 0]
@@ -72,7 +72,7 @@ def filter_outside_boxes(boxes, img_h, img_w):
     :return: indices of anchors that inside the image boundary
     '''
 
-    with tf.name_scope('filter_outside_boxes'):
+    with tf.variable_scope('filter_outside_boxes'):
         xmin, ymin, xmax, ymax = tf.unstack(boxes, axis=1)
 
         xmin_index = tf.greater_equal(xmin, 0)

@@ -10,7 +10,7 @@ from proposal_target_layer import proposal_target_layer
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 import resnet as models
-#import mobilenet_v2
+import mobilenetV2 as MobileNetV2
 sys.path.append(os.path.join(os.path.dirname(__file__), '../utils'))
 import encode_and_decode
 import boxes_utils
@@ -33,12 +33,13 @@ class DetectionNetwork(object):
         self.m3_num_anchors_per_location = len(cfgs.M3_ANCHOR_SCALES) * len(cfgs.ANCHOR_RATIOS)
 
     def build_base_network(self, input_img_batch,**kargs):
-        with tf.name_scope("base_network"):
+        with tf.variable_scope("base_network"):
             if self.base_network_name.startswith('resnet'):
                 return models.get_symble(input_img_batch, net_name=self.base_network_name,\
                                         train_fg=self.is_training,**kargs)
-            elif self.base_network_name.startswith('MobilenetV2'):
-                return mobilenet_v2.get_symble(input_img_batch, train_fg=self.is_training,**kargs)
+            elif self.base_network_name.startswith('mobilenet'):
+                return MobileNetV2.get_symble(input_img_batch,net_name=self.base_network_name,\
+                                         train_fg=self.is_training,**kargs)
             else:
                 raise ValueError('Sry, we only support resnet or mobilenet_v2')
 
@@ -49,7 +50,7 @@ class DetectionNetwork(object):
         :param scores: [-1, cfgs.Class_num + 1]
         :return:
         '''
-        with tf.name_scope('postprocess_fastrcnn'):
+        with tf.variable_scope('postprocess_fastrcnn'):
             if self.is_training:
                 pre_nms_topN = cfgs.TOP_K_NMS_TRAIN
                 post_nms_topN = cfgs.MAXIMUM_PROPOSAL_TARIN

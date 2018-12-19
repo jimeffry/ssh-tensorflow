@@ -33,11 +33,13 @@ import nms
 
 
 def merge_result(result_dict):
-    final_bbox = [result_dict['final_bbox_m1'], result_dict['final_bbox_m2'], result_dict['final_bbox_m3']]
-    final_scores = [result_dict['final_scores_m1'], result_dict['final_scores_m2'], result_dict['final_scores_m3']]
-    final_category = [result_dict['final_category_m1'], result_dict['final_category_m2'],
-                      result_dict['final_category_m3']]
-    #final_bbox = [result_dict['final_bbox_m1'], result_dict['final_bbox_m2'], result_dict['final_bbox_m2']]
+    #final_bbox = [result_dict['final_bbox_m1'], result_dict['final_bbox_m2'], result_dict['final_bbox_m3']]
+    #final_scores = [result_dict['final_scores_m1'], result_dict['final_scores_m2'], result_dict['final_scores_m3']]
+    #final_category = [result_dict['final_category_m1'], result_dict['final_category_m2'],
+     #                 result_dict['final_category_m3']]
+    final_bbox = [result_dict['final_bbox_m1']]#result_dict['final_bbox_m3']]
+    final_scores = [result_dict['final_scores_m1']] #, result_dict['final_scores_m3']]
+    final_category = [result_dict['final_category_m1']] #, result_dict['final_category_m3']]
     final_bbox = np.concatenate(final_bbox, axis=0)
     final_scores = np.concatenate(final_scores, axis=0)
     final_category = np.concatenate(final_category, axis=0)

@@ -17,16 +17,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__),'../configs'))
 import config
 
 def Conv_block(data_in,kernel_size,**kargs):
-    conv_stride = kargs.get('conv_stride',1)
-    filter_num = kargs.get('filter_num',32)
-    name_scope = kargs.get('name','res_base')
-    w_regular = kargs.get('w_regular',None)
-    train_fg = kargs.get('train_fg',True)
-    bn_use = kargs.get('bn_use',True)
-    group_num = kargs.get('group_num',32)
-    eps = kargs.get('eps',1e-05)
-    relu_type = kargs.get('relu_type',None)
-    with tf.variable_scope(name_scope):
+        conv_stride = kargs.get('conv_stride',1)
+        filter_num = kargs.get('filter_num',32)
+        name_scope = kargs.get('name','res_base')
+        w_regular = kargs.get('w_regular',None)
+        train_fg = kargs.get('train_fg',True)
+        bn_use = kargs.get('bn_use',True)
+        group_num = kargs.get('group_num',32)
+        eps = kargs.get('eps',1e-05)
+        relu_type = kargs.get('relu_type',None)
+        #with tf.variable_scope(name_scope):
         bn_out = tfc.conv2d(data_in,filter_num,kernel_size,conv_stride,activation_fn=None,\
                             trainable=train_fg,weights_regularizer=w_regular,scope='%s_conv' % name_scope)
         #bn_out = tfc.group_norm(conv_out,group_num,epsilon=eps,scope='%s_bn' % name_scope)
@@ -46,13 +46,13 @@ def Conv_block(data_in,kernel_size,**kargs):
             return act_out
 
 def res_block(data_in,**kargs):
-    filter_num_inside = kargs.get('filter_num_inside',32)
-    filter_num_out = kargs.get('filter_num_out',64)
-    shape_same = kargs.get('shape_same',True)
-    name_scope = kargs.get('res_name','res1_1')
-    r_relu = kargs.get('rrelu_type','relu6')
-    res_stride = kargs.get('res_stride',1)
-    with tf.variable_scope(name_scope):
+        filter_num_inside = kargs.get('filter_num_inside',32)
+        filter_num_out = kargs.get('filter_num_out',64)
+        shape_same = kargs.get('shape_same',True)
+        name_scope = kargs.get('res_name','res1_1')
+        r_relu = kargs.get('rrelu_type','relu6')
+        res_stride = kargs.get('res_stride',1)
+        #with tf.variable_scope(name_scope):
         res1a_1 = Conv_block(data_in,1,filter_num=filter_num_inside,relu_type=r_relu,\
                             conv_stride=res_stride,name='%sa_1' % name_scope,**kargs)
         res1a_2 = Conv_block(res1a_1,3,filter_num=filter_num_inside,relu_type=r_relu,\
@@ -74,11 +74,11 @@ def res_block(data_in,**kargs):
         return res_out
 
 def res_block_seq(data_in,block_num,**kargs):
-    seq_name = kargs.get('seq_name','res1')
-    seq_stride = kargs.get('seq_stride',1)
-    seq_num_in = kargs.get('kernel_num_in',32)
-    seq_num_out = kargs.get('kernel_num_out',64)
-    with tf.variable_scope(seq_name):
+        seq_name = kargs.get('seq_name','res1')
+        seq_stride = kargs.get('seq_stride',1)
+        seq_num_in = kargs.get('kernel_num_in',32)
+        seq_num_out = kargs.get('kernel_num_out',64)
+        #with tf.variable_scope(seq_name):
         res_seq_out = res_block(data_in,shape_same=False,res_stride=seq_stride,filter_num_inside=seq_num_in,\
                         filter_num_out=seq_num_out,res_name='%s_1' % seq_name,**kargs)
         if block_num >1:
@@ -89,10 +89,11 @@ def res_block_seq(data_in,block_num,**kargs):
         return res_seq_out
 
 def get_symble(input_image,**kargs):
-    w_decay = kargs.get('w_decay',1e-5)
-    net_name = kargs.get('net_name','resnet50')
-    w_r = tfc.l2_regularizer(w_decay)
-    with tf.variable_scope(net_name):
+        w_decay = kargs.get('w_decay',1e-5)
+        net_name = kargs.get('net_name','resnet50')
+        w_r = tfc.l2_regularizer(w_decay)
+        assert net_name.lower() in ['resnet50','resnet100'], "Please sel netname: resnet50 or resnet100"
+        #with tf.variable_scope(net_name):
         res_base_conv = Conv_block(input_image,7,conv_stride=2,filter_num=64,relu_type='relu6',\
                                 w_regular=w_r,**kargs)
         C1 = tfc.max_pool2d(res_base_conv,3,stride=2,padding='SAME',scope='res_base_pool')
